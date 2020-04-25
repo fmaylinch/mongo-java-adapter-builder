@@ -20,9 +20,10 @@ public class AdapterBuilder<M> {
 
 	protected final Class<M> modelClass;
 	protected final Class<Document> docClass;
+	private final Class<? extends BaseDocumentAdapter> adapterSuperclass;
 
 	/** Known adapters for other model classes. Must contain adapters for referenced models. */
-	protected final Map<Class<?>, TypeSpec> modelAdapters;
+	protected Map<Class<?>, TypeSpec> modelAdapters;
 
 	/** How the model class field names (keys) map to {@link Document} field names (values) */
 	protected final Map<String, String> fieldNames;
@@ -37,11 +38,13 @@ public class AdapterBuilder<M> {
 
 	protected final static String typeVar = "T";
 
-	// Method names
+	/**
+	 * Names of methods defined in {@link BaseDocumentAdapter}.
+	 * They can be used as helpers to generate code.
+	 */
 	protected final static String appendTo = "appendTo";
 	protected final static String model2doc = "model2doc";
 	protected final static String doc2model = "doc2model";
-	protected final static String mapToList = "mapToList";
 	protected final static String obj2enum = "obj2enum";
 	protected final static String enum2obj = "enum2obj";
 	protected final static String string2id = "string2id";
@@ -54,12 +57,28 @@ public class AdapterBuilder<M> {
 	/** Name of the variable for the {@link Document} object */
 	private String docVar = "doc";
 
+	public AdapterBuilder(Class<M> modelClass, Map<String, String> fieldNames) {
+		this(modelClass, BaseDocumentAdapter.class, fieldNames);
+	}
 
-	public AdapterBuilder(Class<M> modelClass, Map<Class<?>, TypeSpec> modelAdapters, Map<String, String> fieldNames) {
+	public <A extends BaseDocumentAdapter> AdapterBuilder(Class<M> modelClass, Class<A> adapterSuperclass, Map<String, String> fieldNames) {
 		this.modelClass = modelClass;
-		this.modelAdapters = modelAdapters;
+		this.adapterSuperclass = adapterSuperclass;
 		this.fieldNames = fieldNames;
 		this.docClass = Document.class;
+	}
+
+	public Class<? extends BaseDocumentAdapter> getAdapterSuperclass() {
+		return adapterSuperclass;
+	}
+
+	/** TODO: Rethink of this. Now the context must set this to have the adapters generated so far. */
+	public void setModelAdapters(Map<Class<?>, TypeSpec> modelAdapters) {
+		this.modelAdapters = modelAdapters;
+	}
+
+	public Class<M> getModelClass() {
+		return modelClass;
 	}
 
 	public TypeSpec build() throws Exception {
@@ -83,11 +102,6 @@ public class AdapterBuilder<M> {
 			.addMethod(build_model2doc())
 			.addMethod(build_doc2model())
 			.build();
-	}
-
-	/** Override when creating adapter for subclasses, and specify the adapter of the superclass */
-	public Class<? extends BaseDocumentAdapter> getAdapterSuperclass() {
-		return BaseDocumentAdapter.class;
 	}
 
 	/** Override if there are more fields that are ObjectId */
@@ -208,7 +222,7 @@ public class AdapterBuilder<M> {
 	 * The result is something like this for basic types: model.getSomeField().
 	 * For some types an adapter function is applied, e.g. enum2obj(model.getSomeField())
 	 *
-	 * You may override this method in some cases. Return a {@link String} or any object that can be used with $L, like {@link CodeBlock}.
+	 * You may override this method in some cases. Return any object that can be converted to a String.
 	 * See: https://github.com/square/javapoet#l-for-literals
 	 */
 	public Object buildModelFieldExtractor(String modelVar, Field modelField) {
@@ -243,7 +257,7 @@ public class AdapterBuilder<M> {
 	 * The result is something like this for basic types: doc.getInteger(Fields.someField).
 	 * For some types an adapter function is applied, e.g. obj2enum(doc.get(Fields.someField))
 	 *
-	 * You may override this method in some cases. Return a {@link String} or any object that can be used with $L, like {@link CodeBlock}.
+	 * You may override this method in some cases. Return any object that can be converted to a String.
 	 * See: https://github.com/square/javapoet#l-for-literals
 	 */
 	public Object buildDocFieldExtractor(String docVar, Field modelField, Type fieldType) {

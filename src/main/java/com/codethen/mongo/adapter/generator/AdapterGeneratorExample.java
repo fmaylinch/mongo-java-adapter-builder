@@ -6,7 +6,7 @@ import com.codethen.mongo.adapter.generator.sample.Person;
 import com.codethen.mongo.adapter.generator.sample.adapter.AddressAdapter;
 import com.codethen.mongo.adapter.generator.sample.adapter.AddressExtAdapter;
 import com.codethen.mongo.adapter.generator.sample.adapter.PersonAdapter;
-import com.google.common.collect.ImmutableMap;
+import com.codethen.util.MapBuilder;
 import com.google.gson.GsonBuilder;
 import com.mongodb.Function;
 import com.mongodb.MongoClient;
@@ -14,14 +14,11 @@ import com.mongodb.MongoClientSettings;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.squareup.javapoet.CodeBlock;
-import com.squareup.javapoet.JavaFile;
-import com.squareup.javapoet.TypeSpec;
 import org.bson.Document;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.types.ObjectId;
 
-import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.*;
@@ -45,42 +42,36 @@ public class AdapterGeneratorExample {
 		final String packageName = AdapterGeneratorExample.class.getPackage().getName() + ".sample.adapter";
 		final String sourcePath = "src/main/java";
 
-		final Map<Class<?>, TypeSpec> adapters = new HashMap<>();
+		final AdapterBuilderContext context = new AdapterBuilderContext(sourcePath, packageName);
 
-
-		// This is a simple class
-
-		final TypeSpec addressAdapter = new AdapterBuilder<>(Address.class, adapters, setupFields(m -> m
+		/** {@link Address} is a simple class. Ee just define the fields. */
+		context.createAdapter(new AdapterBuilder<>(Address.class, fields(m -> m
 			.put("street", "str")
 			.put("number", "num")
-		)).build();
+		)));
 
-		JavaFile.builder(packageName, addressAdapter).build().writeTo(new File(sourcePath));
-		adapters.put(Address.class, addressAdapter);
-
-		// This is a subclass, so indicates the superclass adapter
-
-		final TypeSpec addressExtAdapter = new AdapterBuilder<AddressExt>(AddressExt.class, adapters, setupFields(m -> m
+		/**
+		 * {@link AddressExt} is a subclass, so we indicate the superclass adapter.
+		 * Note that the {@link AddressAdapter} must be already generated.
+		 */
+		context.createAdapter(new AdapterBuilder<>(AddressExt.class, AddressAdapter.class, fields(m -> m
 			.put("city", "city")
-		)){
-			@Override
-			public Class<? extends BaseDocumentAdapter> getAdapterSuperclass() {
-				return AddressAdapter.class;
-			}
-		}.build();
+		)));
 
-		JavaFile.builder(packageName, addressExtAdapter).build().writeTo(new File(sourcePath));
-		adapters.put(AddressExt.class, addressExtAdapter);
+		// Note that we can use this object to refer to fields (since the adapter is already generated)
+		final PersonAdapter.Fields f = PersonAdapter.fields;
 
-
-		// This is a more complex class, including fields of basic and special types like ObjectId, Enum and List (of all the previous types)
-
-		final PersonAdapter.Fields f = PersonAdapter.fields; // For convenience, you can use an alias
-
-		final TypeSpec personAdapter = new AdapterBuilder<Person>(Person.class, adapters, setupFields(m -> m
-			.put("id", f.id) // We can use the field after we have generated the PersonAdapter :)
-			.put("friendIds", "friends")
-			.put("name", "name")
+		/**
+		 * {@link Person} is a complex class, including fields of:
+		 * - Basic types like {@link String}, {@link Integer}, {@link Boolean}
+		 * - Special types like {@link ObjectId}, {@link Enum}
+		 * - Fields of other model classes like {@link Address} or {@link AddressExt}
+		 * - List fields (of all the previous types: basic, ObjectId, Enum)
+		 */
+		context.createAdapter(new AdapterBuilder<Person>(Person.class, fields(m -> m
+			.put("id", f.id)
+			.put("friendIds", f.friendIds)
+			.put("name", f.name)
 			.put("nicknames", "nicks")
 			.put("age", "age")
 			.put("number", "num")
@@ -90,13 +81,19 @@ public class AdapterGeneratorExample {
 			.put("address", "adr")
 			.put("otherAddresses", "other")
 		)){
+			/**
+			 * Here we indicate the fields that should be persisted as {@link ObjectId}s.
+			 * By default, it's just the "_id" field.
+			 * Note that we can refer to fields that are {@link List} of {@link String}.
+			 */
 			@Override
 			public Collection<String> objectIdDocFields() {
 				return Arrays.asList(f.id, f.friendIds);
 			}
 
-			// The next methods can be overridden to configure custom mappings.
-			// In this example, we store a String field number as an Integer into the database.
+			// The next methods show a custom mapping. This should be rarely used.
+			// This is a weird example, just to show how you could write your custom mappings.
+			// We store a String field number as an Integer into the database.
 
 			@Override
 			public Object buildModelFieldExtractor(String modelVar, Field modelField) {
@@ -119,11 +116,7 @@ public class AdapterGeneratorExample {
 
 				return super.buildDocFieldExtractor(docVar, modelField, fieldType);
 			}
-		}.build();
-
-		JavaFile.builder(packageName, personAdapter).build().writeTo(new File(sourcePath));
-		adapters.put(Person.class, personAdapter);
-
+		});
 	}
 
 	private static void tryAdapters() {
@@ -215,10 +208,8 @@ public class AdapterGeneratorExample {
 		System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(p));
 	}
 
-	private static Map<String, String> setupFields(Consumer<ImmutableMap.Builder<String, String>> config) {
+	private static Map<String, String> fields(Function<MapBuilder<String, String>, MapBuilder<String, String>> config) {
 
-		final ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-		config.accept(builder);
-		return builder.build();
+		return config.apply(MapBuilder.linked()).build();
 	}
 }
