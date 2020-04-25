@@ -44,7 +44,7 @@ public class AdapterGeneratorExample {
 
 		final AdapterBuilderContext context = new AdapterBuilderContext(sourcePath, packageName);
 
-		/** {@link Address} is a simple class. Ee just define the fields. */
+		/** {@link Address} is a simple class. We just define the fields. */
 		context.createAdapter(new AdapterBuilder<>(Address.class, fields(m -> m
 			.put("street", "str")
 			.put("number", "num")
