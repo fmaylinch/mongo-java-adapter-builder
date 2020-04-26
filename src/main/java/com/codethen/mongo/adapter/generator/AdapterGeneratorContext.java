@@ -8,7 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public class AdapterBuilderContext {
+public class AdapterGeneratorContext {
 
     /** Path of source files where adapters will be put (e.g. "src/main/java")*/
     private final String sourcePath;
@@ -16,18 +16,18 @@ public class AdapterBuilderContext {
     private final String packageName;
     private final Map<Class<?>, TypeSpec> adapters;
 
-    public AdapterBuilderContext(String sourcePath, String packageName) {
+    public AdapterGeneratorContext(String sourcePath, String packageName) {
         this.sourcePath = sourcePath;
         this.packageName = packageName;
         this.adapters = new HashMap<>();
     }
 
-    public <T> void createAdapter(AdapterBuilder adapterBuilder, Consumer<AdapterBuilder> config) {
+    public <T> void createAdapter(AdapterGenerator adapterGenerator, Consumer<AdapterGenerator> config) {
         try {
-            adapterBuilder.setModelAdapters(adapters);
-            config.accept(adapterBuilder);
-            final TypeSpec adapterTypeSpec = adapterBuilder.build();
-            adapters.put(adapterBuilder.getModelClass(), adapterTypeSpec);
+            adapterGenerator.setModelAdapters(adapters);
+            config.accept(adapterGenerator);
+            final TypeSpec adapterTypeSpec = adapterGenerator.build();
+            adapters.put(adapterGenerator.getModelClass(), adapterTypeSpec);
             JavaFile.builder(packageName, adapterTypeSpec).build().writeTo(new File(sourcePath));
         } catch (Exception e) {
             throw new RuntimeException("Problem building the adapter", e);

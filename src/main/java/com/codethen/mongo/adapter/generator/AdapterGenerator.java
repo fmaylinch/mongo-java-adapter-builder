@@ -13,7 +13,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
 
-public class AdapterBuilder {
+public class AdapterGenerator {
 
 	private Class<?> modelClass;
 	private Class<Document> docClass = Document.class;

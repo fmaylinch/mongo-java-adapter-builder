@@ -25,7 +25,6 @@ import java.lang.reflect.Type;
 import java.util.*;
 import java.util.function.Consumer;
 
-import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
@@ -48,10 +47,10 @@ public class AdapterGeneratorExample {
 		final String packageName = AdapterGeneratorExample.class.getPackage().getName() + ".sample.adapter";
 		final String sourcePath = "src/main/java";
 
-		final AdapterBuilderContext context = new AdapterBuilderContext(sourcePath, packageName);
+		final AdapterGeneratorContext context = new AdapterGeneratorContext(sourcePath, packageName);
 
 		/** {@link Address} is a simple class. We just define the fields. */
-		context.createAdapter(new AdapterBuilder(), a -> {
+		context.createAdapter(new AdapterGenerator(), a -> {
 			a.setModelClass(Address.class);
 			a.setFieldNames(fields(m -> m
 				.put("street", "str")
@@ -63,7 +62,7 @@ public class AdapterGeneratorExample {
 		 * {@link AddressExt} is a subclass, so we indicate the superclass adapter {@link AddressAdapter}.
 		 * Note that the {@link AddressAdapter} must be already generated.
 		 */
-		context.createAdapter(new AdapterBuilder(), a -> {
+		context.createAdapter(new AdapterGenerator(), a -> {
 			a.setModelClass(AddressExt.class);
 			a.setAdapterSuperclass(AddressAdapter.class);
 			a.setFieldNames(fields(m -> m
@@ -81,7 +80,7 @@ public class AdapterGeneratorExample {
 		 * - Fields of other model classes like {@link Address} or {@link AddressExt}
 		 * - List fields (of all the previous types: basic, ObjectId, Enum)
 		 */
-		context.createAdapter(new AdapterBuilder() {
+		context.createAdapter(new AdapterGenerator() {
 
 			// These methods show a custom mapping. This should be rarely used.
 			// This is a weird example, just to show how you could write your custom mappings.
