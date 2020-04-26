@@ -22,9 +22,6 @@ public class AdapterGenerator {
 	/** Fields that are {@link String} in the model but {@link ObjectId} in the {@link Document} */
 	private Collection<String> objectIdDocFields = Collections.singletonList("_id");
 
-	/** Known adapters for other model classes. Must contain adapters for referenced models. */
-	private Map<Class<?>, TypeSpec> modelAdapters;
-
 	/** How the model class field names (keys) map to {@link Document} field names (values) */
 	private Map<String, String> fieldNames;
 
@@ -56,9 +53,18 @@ public class AdapterGenerator {
 
 	/** Name of the variable for the {@link Document} object */
 	private String docVar = "doc";
+	private AdapterGeneratorContext context;
 
 
 	// --- Getters and setters ---
+
+	public AdapterGeneratorContext getContext() {
+		return context;
+	}
+
+	public void setContext(AdapterGeneratorContext context) {
+		this.context = context;
+	}
 
 	public Class<? extends BaseDocumentAdapter> getAdapterSuperclass() {
 		return adapterSuperclass;
@@ -82,11 +88,6 @@ public class AdapterGenerator {
 			this.fieldNames = new HashMap<>();
 		}
 		this.fieldNames.put(modelField, docField);
-	}
-
-	/** TODO: Rethink of this. Now the context must set this to have the adapters generated so far. */
-	public void setModelAdapters(Map<Class<?>, TypeSpec> modelAdapters) {
-		this.modelAdapters = modelAdapters;
 	}
 
 	public Class<?> getModelClass() {
@@ -271,7 +272,7 @@ public class AdapterGenerator {
 		} else {
 			// Model adapters
 			final Type itemType = getTypeOrTypeArgument(modelField.getGenericType());
-			if (modelAdapters.containsKey(itemType)) {
+			if (context.getAdapters().containsKey(itemType)) {
 				result = applyFunction(getAdapterFunction(model2doc, itemType), result);
 			}
 		}
@@ -305,7 +306,7 @@ public class AdapterGenerator {
 		} else {
 			// Model adapters
 			final Type itemType = getTypeOrTypeArgument(fieldType);
-			if (modelAdapters.containsKey(itemType)) {
+			if (context.getAdapters().containsKey(itemType)) {
 				result = applyFunction(getAdapterFunction(doc2model, itemType), applyCast(getType(isList, Document.class), result));
 			} else {
 				result = applyCast(fieldType, result);
@@ -366,7 +367,7 @@ public class AdapterGenerator {
 	}
 
 	private Object getAdapterFunction(String functionName, Type adaptedType) {
-		final TypeSpec adapterTypeSpec = modelAdapters.get(adaptedType);
+		final TypeSpec adapterTypeSpec = context.getAdapters().get(adaptedType);
 		if (adapterTypeSpec == null) throw new IllegalArgumentException("Unexpectedly, I can't find adapter for type: " + adaptedType);
 		return CodeBlock.builder().add("$N.$L.$L", adapterTypeSpec, instanceVar, functionName).build();
 	}

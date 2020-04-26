@@ -14,6 +14,7 @@ public class AdapterGeneratorContext {
     private final String sourcePath;
     /** Package of the generated adapters (e.g. "com.brand.project.mongo.adapters") */
     private final String packageName;
+    /** Known adapters for model classes. */
     private final Map<Class<?>, TypeSpec> adapters;
 
     public AdapterGeneratorContext(String sourcePath, String packageName) {
@@ -24,7 +25,7 @@ public class AdapterGeneratorContext {
 
     public <T> void createAdapter(AdapterGenerator adapterGenerator, Consumer<AdapterGenerator> config) {
         try {
-            adapterGenerator.setModelAdapters(adapters);
+            adapterGenerator.setContext(this);
             config.accept(adapterGenerator);
             final TypeSpec adapterTypeSpec = adapterGenerator.build();
             adapters.put(adapterGenerator.getModelClass(), adapterTypeSpec);
@@ -32,5 +33,9 @@ public class AdapterGeneratorContext {
         } catch (Exception e) {
             throw new RuntimeException("Problem building the adapter", e);
         }
+    }
+
+    public Map<Class<?>, TypeSpec> getAdapters() {
+        return adapters;
     }
 }
