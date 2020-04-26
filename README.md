@@ -1,4 +1,4 @@
-# MongoDB Java Adapter Builder
+# MongoDB Java Adapter Generator
 
 This experimental utility generates (source code) adapter/mapper classes that
 convert between MongoDB `Document` and your model classes.
