@@ -6,6 +6,7 @@ import com.squareup.javapoet.TypeSpec;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class AdapterBuilderContext {
 
@@ -21,9 +22,10 @@ public class AdapterBuilderContext {
         this.adapters = new HashMap<>();
     }
 
-    public <T> void createAdapter(AdapterBuilder<T> adapterBuilder) {
+    public <T> void createAdapter(AdapterBuilder adapterBuilder, Consumer<AdapterBuilder> config) {
         try {
             adapterBuilder.setModelAdapters(adapters);
+            config.accept(adapterBuilder);
             final TypeSpec adapterTypeSpec = adapterBuilder.build();
             adapters.put(adapterBuilder.getModelClass(), adapterTypeSpec);
             JavaFile.builder(packageName, adapterTypeSpec).build().writeTo(new File(sourcePath));

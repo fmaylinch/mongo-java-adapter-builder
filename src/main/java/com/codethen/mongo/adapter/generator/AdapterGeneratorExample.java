@@ -7,6 +7,7 @@ import com.codethen.mongo.adapter.generator.sample.adapter.AddressAdapter;
 import com.codethen.mongo.adapter.generator.sample.adapter.AddressExtAdapter;
 import com.codethen.mongo.adapter.generator.sample.adapter.PersonAdapter;
 import com.codethen.util.MapBuilder;
+import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mongodb.Function;
 import com.mongodb.MongoClient;
@@ -31,13 +32,18 @@ import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 
 public class AdapterGeneratorExample {
 
+	private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
 	public static void main(String[] args) throws Exception {
 
 		generateAdapters();
 		tryAdapters();
 	}
 
-	private static void generateAdapters() throws Exception {
+	/**
+	 * Example of adapter generation
+	 */
+	private static void generateAdapters() {
 
 		final String packageName = AdapterGeneratorExample.class.getPackage().getName() + ".sample.adapter";
 		final String sourcePath = "src/main/java";
@@ -45,18 +51,25 @@ public class AdapterGeneratorExample {
 		final AdapterBuilderContext context = new AdapterBuilderContext(sourcePath, packageName);
 
 		/** {@link Address} is a simple class. We just define the fields. */
-		context.createAdapter(new AdapterBuilder<>(Address.class, fields(m -> m
-			.put("street", "str")
-			.put("number", "num")
-		)));
+		context.createAdapter(new AdapterBuilder(), a -> {
+			a.setModelClass(Address.class);
+			a.setFieldNames(fields(m -> m
+				.put("street", "str")
+				.put("number", "num")
+			));
+		});
 
 		/**
-		 * {@link AddressExt} is a subclass, so we indicate the superclass adapter.
+		 * {@link AddressExt} is a subclass, so we indicate the superclass adapter {@link AddressAdapter}.
 		 * Note that the {@link AddressAdapter} must be already generated.
 		 */
-		context.createAdapter(new AdapterBuilder<>(AddressExt.class, AddressAdapter.class, fields(m -> m
-			.put("city", "city")
-		)));
+		context.createAdapter(new AdapterBuilder(), a -> {
+			a.setModelClass(AddressExt.class);
+			a.setAdapterSuperclass(AddressAdapter.class);
+			a.setFieldNames(fields(m -> m
+				.put("city", "city")
+			));
+		});
 
 		// Note that we can use this object to refer to fields (since the adapter is already generated)
 		final PersonAdapter.Fields f = PersonAdapter.fields;
@@ -68,30 +81,9 @@ public class AdapterGeneratorExample {
 		 * - Fields of other model classes like {@link Address} or {@link AddressExt}
 		 * - List fields (of all the previous types: basic, ObjectId, Enum)
 		 */
-		context.createAdapter(new AdapterBuilder<Person>(Person.class, fields(m -> m
-			.put("id", f.id)
-			.put("friendIds", f.friendIds)
-			.put("name", f.name)
-			.put("nicknames", "nicks")
-			.put("age", "age")
-			.put("number", "num")
-			.put("famous", "fam")
-			.put("gender", "gen")
-			.put("preferredGenders", "prefs")
-			.put("address", "adr")
-			.put("otherAddresses", "other")
-		)){
-			/**
-			 * Here we indicate the fields that should be persisted as {@link ObjectId}s.
-			 * By default, it's just the "_id" field.
-			 * Note that we can refer to fields that are {@link List} of {@link String}.
-			 */
-			@Override
-			public Collection<String> objectIdDocFields() {
-				return Arrays.asList(f.id, f.friendIds);
-			}
+		context.createAdapter(new AdapterBuilder() {
 
-			// The next methods show a custom mapping. This should be rarely used.
+			// These methods show a custom mapping. This should be rarely used.
 			// This is a weird example, just to show how you could write your custom mappings.
 			// We store a String field number as an Integer into the database.
 
@@ -116,21 +108,53 @@ public class AdapterGeneratorExample {
 
 				return super.buildDocFieldExtractor(docVar, modelField, fieldType);
 			}
+		}, a -> {
+
+			a.setModelClass(Person.class);
+
+			/**
+			 * Here we indicate the fields that should be persisted as {@link ObjectId}s.
+			 * By default, it's just the "_id" field.
+			 * Note that we can refer to fields that are {@link List} of {@link String}.
+			 */
+			a.setObjectIdDocFields(Arrays.asList(f.id, f.friendIds));
+
+			a.setFieldNames(fields(m -> m
+				.put("id", f.id)
+				.put("friendIds", f.friendIds)
+				.put("name", f.name)
+				.put("nicknames", "nicks")
+				.put("age", "age")
+				.put("number", "num")
+				.put("famous", "fam")
+				.put("gender", "gen")
+				.put("preferredGenders", "prefs")
+				.put("address", "adr")
+				.put("otherAddresses", "other")
+			));
 		});
 	}
 
+	/**
+	 * Example of usage of the adapters.
+	 * This example connects to a local MongoDB database.
+	 */
 	private static void tryAdapters() {
 
 		final Function<Document, Person> doc2model = PersonAdapter.INSTANCE::doc2model;
 		final Function<Person, Document> model2doc = PersonAdapter.INSTANCE::model2doc;
 
 		final MongoDatabase db = getMongoDatabase("adapter" + "generator" + "example");
-		final MongoCollection<Document> people = db.getCollection("people");
+		final MongoCollection<Document> peopleCollection = db.getCollection("people");
 
-		people.drop();
-		people.insertOne(model2doc.apply(createSamplePerson(p -> { p.setName("P1"); p.getAddress().setStreet("S1"); })));
-		people.insertOne(model2doc.apply(createSamplePerson(p -> { p.setName("P2"); p.getAddress().setStreet("S2"); })));
-		people.insertOne(model2doc.apply(createSamplePerson(p -> { p.setName("P3"); p.getAddress().setStreet("S3"); })));
+		final List<Person> people = Arrays.asList(
+			createSamplePerson(p4 -> { p4.setName("P1"); p4.getAddress().setStreet("S1"); }),
+			createSamplePerson(p1 -> { p1.setName("P2"); p1.getAddress().setStreet("S2"); }),
+			createSamplePerson(p2 -> { p2.setName("P3"); p2.getAddress().setStreet("S3"); })
+		);
+
+		peopleCollection.drop();
+		peopleCollection.insertMany(people.stream().map(model2doc::apply).collect(toList()));
 
 		// For convenience, you can use an alias
 		final PersonAdapter.Fields pf = PersonAdapter.fields;
@@ -138,15 +162,26 @@ public class AdapterGeneratorExample {
 
 		// Note that street is a field inherited from Address, but it's also available in AddressExtAdapter
 
-		final List<Person> peopleFound = people
+		final List<Person> peopleFound = peopleCollection
 			.find(queryBy(pf.address + "." + af.street, "S2"))
 			.map(doc2model)
 			.into(new ArrayList<>());
 
 		peopleFound.forEach(p -> printPerson(p));
 
-		if (!peopleFound.stream().map(p -> p.getName()).collect(toList()).equals(singletonList("P2"))) {
-			throw new IllegalStateException("Data found not as expected");
+
+		final Person personExpected = people.get(1);
+
+		// We set the ID to compare, since personExpected does not have the generated ID
+		personExpected.setId(peopleFound.get(0).getId());
+
+		final String dataFromDb = gson.toJson(peopleFound);
+		final String dataExpected = gson.toJson(Arrays.asList(personExpected));
+
+		if (!dataFromDb.equals(dataExpected)) {
+			throw new IllegalStateException("Data found is not as expected\n" +
+				"Data from db: " + dataFromDb + "\n\n" +
+				"Data expected: " + dataExpected);
 		}
 	}
 
@@ -155,6 +190,8 @@ public class AdapterGeneratorExample {
 	}
 
 	/**
+	 * This is an example of auto-mapping provided by MongoDB out-of-the-box.
+	 *
 	 * http://mongodb.github.io/mongo-java-driver/4.0/driver/getting-started/quick-start-pojo/
 	 */
 	private static void tryCodecRegistry() {
@@ -162,8 +199,8 @@ public class AdapterGeneratorExample {
 		final CodecRegistry pojoCodecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(),
 			fromProviders(PojoCodecProvider.builder().automatic(true).build()));
 
-		final MongoDatabase db = getMongoDatabase("test").withCodecRegistry(pojoCodecRegistry);
-		final MongoCollection<Person> people = db.getCollection("ppl", Person.class);
+		final MongoDatabase db = getMongoDatabase("adapter" + "generator" + "example").withCodecRegistry(pojoCodecRegistry);
+		final MongoCollection<Person> people = db.getCollection("people_codec", Person.class);
 
 		final Person person = createSamplePerson(p -> {});
 
@@ -181,22 +218,26 @@ public class AdapterGeneratorExample {
 
 	private static Person createSamplePerson(Consumer<Person> config) {
 
-		final AddressExt address = new AddressExt();
-		address.setStreet("Alaba");
-		address.setNumber(61);
-		address.setCity("Barcelona");
+		final AddressExt mainAddress = new AddressExt();
+		mainAddress.setStreet("Extended street");
+		mainAddress.setNumber(123);
+		mainAddress.setCity("Barcelona");
+
+		final Address otherAddress = new Address();
+		otherAddress.setStreet("Simple street");
+		otherAddress.setNumber(321);
 
 		final Person person = new Person();
 		person.setName("John");
 		person.setFriendIds(Arrays.asList(new ObjectId().toString(), new ObjectId().toString()));
-		person.setAddress(address);
+		person.setAddress(mainAddress);
 		person.setAge(20);
 		person.setNumber("123");
 		person.setFamous(true);
 		person.setGender(Person.Gender.MALE);
 		person.setPreferredGenders(Arrays.asList(Person.Gender.MALE, Person.Gender.FEMALE));
 		person.setNicknames(Arrays.asList("Joni", "Gin"));
-		person.setOtherAddresses(Arrays.asList(address, address));
+		person.setOtherAddresses(Arrays.asList(otherAddress, otherAddress));
 
 		config.accept(person);
 
@@ -205,11 +246,10 @@ public class AdapterGeneratorExample {
 
 
 	private static void printPerson(Person p) {
-		System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(p));
+		System.out.println(gson.toJson(p));
 	}
 
 	private static Map<String, String> fields(Function<MapBuilder<String, String>, MapBuilder<String, String>> config) {
-
 		return config.apply(MapBuilder.linked()).build();
 	}
 }

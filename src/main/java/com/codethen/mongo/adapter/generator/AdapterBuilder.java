@@ -11,32 +11,32 @@ import javax.lang.model.element.Modifier;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-public class AdapterBuilder<M> {
+public class AdapterBuilder {
 
-	protected final Class<M> modelClass;
-	protected final Class<Document> docClass;
-	private final Class<? extends BaseDocumentAdapter> adapterSuperclass;
+	private Class<?> modelClass;
+	private Class<Document> docClass = Document.class;
+	private Class<? extends BaseDocumentAdapter> adapterSuperclass = BaseDocumentAdapter.class;
+
+	/** Fields that are {@link String} in the model but {@link ObjectId} in the {@link Document} */
+	private Collection<String> objectIdDocFields = Collections.singletonList("_id");
 
 	/** Known adapters for other model classes. Must contain adapters for referenced models. */
-	protected Map<Class<?>, TypeSpec> modelAdapters;
+	private Map<Class<?>, TypeSpec> modelAdapters;
 
 	/** How the model class field names (keys) map to {@link Document} field names (values) */
-	protected final Map<String, String> fieldNames;
+	private Map<String, String> fieldNames;
 
 	/** Class that contains the fields, named {@link #fieldsClassName} */
-	protected TypeSpec fieldsTypeSpec;
+	private TypeSpec fieldsTypeSpec;
 	private String fieldsClassName = "Fields";
 	private String fieldsField = "fields";
 
 	/** Variable that contains a singleton instance of the adapter */
-	protected final static String instanceVar = "INSTANCE";
+	private final static String instanceVar = "INSTANCE";
 
-	protected final static String typeVar = "T";
+	private final static String typeVar = "T";
 
 	/**
 	 * Names of methods defined in {@link BaseDocumentAdapter}.
@@ -57,19 +57,31 @@ public class AdapterBuilder<M> {
 	/** Name of the variable for the {@link Document} object */
 	private String docVar = "doc";
 
-	public AdapterBuilder(Class<M> modelClass, Map<String, String> fieldNames) {
-		this(modelClass, BaseDocumentAdapter.class, fieldNames);
-	}
 
-	public <A extends BaseDocumentAdapter> AdapterBuilder(Class<M> modelClass, Class<A> adapterSuperclass, Map<String, String> fieldNames) {
-		this.modelClass = modelClass;
-		this.adapterSuperclass = adapterSuperclass;
-		this.fieldNames = fieldNames;
-		this.docClass = Document.class;
-	}
+	// --- Getters and setters ---
 
 	public Class<? extends BaseDocumentAdapter> getAdapterSuperclass() {
 		return adapterSuperclass;
+	}
+
+	public void setAdapterSuperclass(Class<? extends BaseDocumentAdapter> adapterSuperclass) {
+		this.adapterSuperclass = adapterSuperclass;
+	}
+
+	public Map<String, String> getFieldNames() {
+		return fieldNames;
+	}
+
+	public void setFieldNames(Map<String, String> fieldNames) {
+		this.fieldNames = fieldNames;
+	}
+
+	/** How a model class field name (key) maps to a {@link Document} field name (value) */
+	public void addFieldName(String modelField, String docField) {
+		if (this.fieldNames == null) {
+			this.fieldNames = new HashMap<>();
+		}
+		this.fieldNames.put(modelField, docField);
 	}
 
 	/** TODO: Rethink of this. Now the context must set this to have the adapters generated so far. */
@@ -77,8 +89,28 @@ public class AdapterBuilder<M> {
 		this.modelAdapters = modelAdapters;
 	}
 
-	public Class<M> getModelClass() {
+	public Class<?> getModelClass() {
 		return modelClass;
+	}
+
+	public void setModelClass(Class<?> modelClass) {
+		this.modelClass = modelClass;
+	}
+
+	public Class<Document> getDocClass() {
+		return docClass;
+	}
+
+	public void setDocClass(Class<Document> docClass) {
+		this.docClass = docClass;
+	}
+
+	public Collection<String> getObjectIdDocFields() {
+		return objectIdDocFields;
+	}
+
+	public void setObjectIdDocFields(Collection<String> objectIdDocFields) {
+		this.objectIdDocFields = objectIdDocFields;
 	}
 
 	public TypeSpec build() throws Exception {
@@ -104,13 +136,8 @@ public class AdapterBuilder<M> {
 			.build();
 	}
 
-	/** Override if there are more fields that are ObjectId */
-	public Collection<String> objectIdDocFields() {
-		return Collections.singletonList("_id");
-	}
-
 	public boolean isDocFieldObjectId(String docFieldName) {
-		return objectIdDocFields().contains(docFieldName);
+		return getObjectIdDocFields().contains(docFieldName);
 	}
 
 	/** Builds a static field that contains a singleton of the adapter */
